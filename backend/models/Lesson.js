@@ -77,9 +77,26 @@ videoUrl: {
   default: ''
 },
 
+media: {
+  secureUrl: { type: String, default: '' },
+  publicId: { type: String, default: '' },
+  resourceType: { type: String, default: '' },
+  format: { type: String, default: '' },
+  bytes: { type: Number, default: 0 }
+},
+
 isPublished: {
   type: Boolean,
   default: true
+},
+quiz: {
+  passingPercentage: { type: Number, default: 70, min: 1, max: 100 },
+  questions: [{
+    question: { type: String, trim: true },
+    options: [{ type: String, trim: true }],
+    correctOption: { type: Number, min: 0 },
+    explanation: { type: String, default: '' }
+  }]
 }
   },
   {

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 
 function CloudComputing() {
+  const { slug = 'cloud-computing' } = useParams()
   const [lessons, setLessons] = useState([])
+  const [course, setCourse] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -15,7 +17,9 @@ function CloudComputing() {
         setError('')
 
         const response = await fetch(
-          'http://localhost:5000/api/lessons'
+          slug === 'cloud-computing'
+            ? 'http://localhost:5000/api/lessons'
+            : `http://localhost:5000/api/courses/${encodeURIComponent(slug)}`
         )
 
         const data = await response.json()
@@ -24,7 +28,8 @@ function CloudComputing() {
           throw new Error(data.message || 'Unable to load lessons.')
         }
 
-        setLessons(data.lessons)
+        setLessons(data.lessons || [])
+        setCourse(data.course || { title: 'Cloud Computing', description: 'Start from the basics and build practical cloud knowledge.' })
       } catch (err) {
         console.error('Error fetching lessons:', err)
         setError(
@@ -36,7 +41,7 @@ function CloudComputing() {
     }
 
     fetchLessons()
-  }, [])
+  }, [slug])
 
   return (
     <div className="app">
@@ -47,12 +52,11 @@ function CloudComputing() {
           <span className="badge">LEARNING PATH 01</span>
 
           <h1>
-            Learn <span>Cloud Computing</span>
+            Learn <span>{course?.title || 'Cloud Computing'}</span>
           </h1>
 
           <p>
-            Start from the basics and understand cloud computing
-            through simple explanations and practical examples.
+            {course?.description || 'Start from the basics and understand cloud computing through simple explanations and practical examples.'}
           </p>
 
           <a href="#lessons" className="primary-btn">

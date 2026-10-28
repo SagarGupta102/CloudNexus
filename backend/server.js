@@ -11,6 +11,11 @@ app.use(express.json())
 
 // Import lesson routes
 const lessonRoutes = require('./routes/lessonRoutes')
+const authRoutes = require('./routes/authRoutes')
+const courseRoutes = require('./routes/courseRoutes')
+const learningRoutes = require('./routes/learningRoutes')
+const certificateRoutes = require('./routes/certificateRoutes')
+const mediaRoutes = require('./routes/mediaRoutes')
 
 // Health check API
 app.get('/api/health', (req, res) => {
@@ -22,6 +27,11 @@ app.get('/api/health', (req, res) => {
 
 // Lesson APIs
 app.use('/api/lessons', lessonRoutes)
+app.use('/api/auth', authRoutes)
+app.use('/api/courses', courseRoutes)
+app.use('/api/learning', learningRoutes)
+app.use('/api/certificates', certificateRoutes)
+app.use('/api/media', mediaRoutes)
 
 // Start server after connecting to MongoDB
 async function startServer() {

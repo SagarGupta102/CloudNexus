@@ -2,6 +2,7 @@ const mongoose = require('mongoose')
 require('dotenv').config()
 
 const Lesson = require('./models/Lesson')
+const Course = require('./models/Course')
 
 // Initial Cloud Computing lessons
 const lessons = [
@@ -16,6 +17,17 @@ const lessons = [
     level: 'Beginner',
     content:
       'Cloud computing provides computing resources such as servers, storage, databases, and networking over a network. Common benefits include flexibility, scalability, and cost efficiency. Amazon S3 provides object storage, Amazon EC2 provides virtual servers, and Amazon RDS helps manage relational databases.',
+    quiz: {
+      passingPercentage: 70,
+      questions: [
+        {
+          question: 'Which AWS service is commonly used to store files as objects?',
+          options: ['Amazon S3', 'Amazon EC2', 'Amazon Route 53'],
+          correctOption: 0,
+          explanation: 'Amazon S3 is AWS object storage.'
+        }
+      ]
+    },
 
       videoUrl: 'https://www.youtube.com/watch?v=mxT233EdY5c',
 
@@ -135,6 +147,19 @@ async function seedLessons() {
     await mongoose.connect(process.env.MONGODB_URI)
 
     console.log('Connected to MongoDB Atlas.')
+
+    const courseSeeds = [
+      ['cloud-computing', 'Cloud Computing', 'Learn cloud concepts, AWS services, and secure cloud infrastructure from the ground up.', 'Cloud', ['cloud', 'aws', 'infrastructure']],
+      ['linux', 'Linux Fundamentals', 'Build confidence with the command line, files, permissions, and system operations.', 'Linux', ['linux', 'command line']],
+      ['python', 'Python Programming', 'Learn programming fundamentals with readable, practical Python examples.', 'Programming', ['python', 'coding']],
+      ['database', 'Database Fundamentals', 'Understand data modeling, queries, and reliable database design.', 'Databases', ['database', 'sql']],
+      ['networking', 'Networking Basics', 'Learn the concepts behind networks, protocols, addressing, and troubleshooting.', 'Networking', ['networking', 'tcp/ip']],
+      ['docker', 'Docker Essentials', 'Package and run applications consistently with containers.', 'DevOps', ['docker', 'containers']],
+      ['git-and-github', 'Git and GitHub', 'Track changes, collaborate, and ship software with Git workflows.', 'DevOps', ['git', 'github']]
+    ]
+    await Course.bulkWrite(courseSeeds.map(([slug, title, description, category, tags]) => ({
+      updateOne: { filter: { slug }, update: { $setOnInsert: { title, slug, description, category, tags, isPublished: true, isPremium: false, price: 0 } }, upsert: true }
+    })))
 
     // Insert new lessons or update existing lessons with matching slugs.
     const result = await Lesson.bulkWrite(

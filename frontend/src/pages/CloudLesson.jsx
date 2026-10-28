@@ -52,6 +52,11 @@ function CloudLesson() {
   const [error, setError] = useState('')
 
   const videoEmbedUrl = getYouTubeEmbedUrl(lesson?.videoUrl)
+  const cloudVideoUrl = lesson?.media?.resourceType === 'video' && lesson?.media?.secureUrl
+    ? lesson.media.secureUrl
+    : !videoEmbedUrl && lesson?.videoUrl?.startsWith('https://res.cloudinary.com/')
+      ? lesson.videoUrl
+      : ''
 
   // Quiz state
   const [selectedAnswer, setSelectedAnswer] = useState('')
@@ -161,6 +166,18 @@ function CloudLesson() {
     </p>
   </section>
 )}
+
+              {cloudVideoUrl && (
+                <section className="lesson-video">
+                  <h2>Watch This Lesson</h2>
+                  <div className="video-frame">
+                    <video controls preload="metadata" src={cloudVideoUrl}>
+                      Your browser does not support video playback.
+                    </video>
+                  </div>
+                  <p className="video-caption">Watch the video, then review the written explanation below.</p>
+                </section>
+              )}
 
               <div className="lesson-callout">
                 <h2>About This Lesson</h2>
