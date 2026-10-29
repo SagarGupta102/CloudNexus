@@ -3,6 +3,8 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 require('dotenv').config()
 
+console.log('JWT_SECRET loaded at server startup:', Boolean(process.env.JWT_SECRET))
+
 const app = express()
 
 // Middleware

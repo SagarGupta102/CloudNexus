@@ -9,6 +9,11 @@ const tokenFor = (user) => jwt.sign({ userId: user._id }, process.env.JWT_SECRET
 
 router.post('/register', async (req, res) => {
   try {
+    console.log(
+  'Register route - JWT_SECRET present:',
+  Boolean(process.env.JWT_SECRET)
+)
+
     if (!process.env.JWT_SECRET) return res.status(503).json({ success: false, message: 'Authentication is not configured on the server.' })
     const { name, email, password, interests = [] } = req.body
     if (!name || !email || !password || password.length < 8) {

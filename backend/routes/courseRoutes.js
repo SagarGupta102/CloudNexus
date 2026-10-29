@@ -6,6 +6,28 @@ const { requireAuth, requireRole } = require('../middleware/auth')
 
 const router = express.Router()
 
+// Hide correct answers from public course responses.
+function sanitizeLesson(lesson) {
+  const safeLesson =
+    typeof lesson.toObject === 'function'
+      ? lesson.toObject()
+      : { ...lesson }
+
+  if (safeLesson.quiz?.questions) {
+    safeLesson.quiz = {
+      passingPercentage: safeLesson.quiz.passingPercentage,
+
+      questions: safeLesson.quiz.questions.map((question) => ({
+        _id: question._id,
+        question: question.question,
+        options: question.options
+      }))
+    }
+  }
+
+  return safeLesson
+}
+
 router.get('/', async (req, res) => {
   try {
     const courses = await Course.find({ isPublished: true }).sort({ createdAt: -1 }).lean()
@@ -21,8 +43,13 @@ router.get('/', async (req, res) => {
 router.get('/:slug', async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true }).lean()
   if (!course) return res.status(404).json({ success: false, message: 'Course not found.' })
-  const lessons = await Lesson.find({ course: course.title, isPublished: true }).sort({ order: 1 })
-  res.json({ success: true, course: { ...course, lessons } })
+  const lessons = course.isPremium
+  ? []
+  : await Lesson.find({
+      course: course.title,
+      isPublished: true
+    }).sort({ order: 1 })
+  res.json({ success: true, course: { ...course, lessons: lessons.map(sanitizeLesson) } })
 })
 
 router.post('/', requireAuth, requireRole('instructor', 'admin'), async (req, res) => {
@@ -33,12 +60,12 @@ router.post('/', requireAuth, requireRole('instructor', 'admin'), async (req, re
 router.post('/:slug/enroll', requireAuth, async (req, res) => {
   const course = await Course.findOne({ slug: req.params.slug, isPublished: true })
   if (!course) return res.status(404).json({ success: false, message: 'Course not found.' })
-  if (course.isPremium && req.body.paymentStatus !== 'paid') {
-    return res.status(402).json({ success: false, message: 'This course requires a verified payment.' })
+  if (course.isPremium) {
+    return res.status(402).json({ success: false, message: 'Premium courses require verified payment through checkout. Direct enrolment is disabled.' })
   }
   const enrollment = await Enrollment.findOneAndUpdate(
     { learner: req.user._id, course: course._id },
-    { $setOnInsert: { learner: req.user._id, course: course._id, paymentStatus: course.isPremium ? 'paid' : 'free' }, $set: { lastActivityAt: new Date() } },
+    { $setOnInsert: { learner: req.user._id, course: course._id, paymentStatus: 'free' }, $set: { lastActivityAt: new Date() } },
     { upsert: true, new: true }
   )
   res.status(201).json({ success: true, enrollment })
