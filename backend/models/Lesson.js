@@ -85,9 +85,15 @@ media: {
   bytes: { type: Number, default: 0 }
 },
 
+approvalStatus: {
+  type: String,
+  enum: ['pending', 'approved', 'rejected'],
+  default: 'pending'
+},
+
 isPublished: {
   type: Boolean,
-  default: true
+  default: false
 },
 quiz: {
   passingPercentage: { type: Number, default: 70, min: 1, max: 100 },

@@ -137,6 +137,9 @@ function Dashboard() {
   const [helpSearch, setHelpSearch] = useState('')
   const [activeSection, setActiveSection] = useState('dashboard')
   const [pendingScroll, setPendingScroll] = useState('')
+  const [certificates, setCertificates] = useState([])
+  const [certificateError, setCertificateError] = useState('')
+  const [generatingCertificate, setGeneratingCertificate] = useState('')
 
   const [settings, setSettings] = useState(() => {
   const defaults = {
@@ -193,6 +196,49 @@ const availableSubjects = [
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    let active = true
+
+    apiRequest('/certificates/mine')
+      .then((result) => {
+        if (active) {
+          setCertificates(
+            Array.isArray(result.certificates) ? result.certificates : []
+          )
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setCertificateError(err.message || 'Unable to load certificates.')
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function generateCertificate(course) {
+    try {
+      setGeneratingCertificate(course.slug)
+      setCertificateError('')
+      const result = await apiRequest(`/certificates/generate/${course.slug}`, {
+        method: 'POST'
+      })
+      setCertificates((current) => [
+        result.certificate,
+        ...current.filter(
+          (certificate) =>
+            certificate.certificateId !== result.certificate.certificateId
+        )
+      ])
+    } catch (err) {
+      setCertificateError(err.message || 'Unable to generate certificate.')
+    } finally {
+      setGeneratingCertificate('')
+    }
+  }
   
 
   // Load all published courses for the Subjects section
@@ -1233,6 +1279,23 @@ const filteredHelpArticles = helpArticles.filter((article) => {
                               Continue learning
                               <ArrowRight size={15} />
                             </Link>
+                            {progress === 100 &&
+                              !certificates.some(
+                                (certificate) =>
+                                  certificate.course?._id === course._id ||
+                                  certificate.course === course._id
+                              ) && (
+                                <button
+                                  type="button"
+                                  className="dashboard-continue-link"
+                                  onClick={() => generateCertificate(course)}
+                                  disabled={generatingCertificate === course.slug}
+                                >
+                                  {generatingCertificate === course.slug
+                                    ? 'Generating...'
+                                    : 'Earn certificate'}
+                                </button>
+                              )}
                           </div>
                         </article>
                       )
@@ -1460,6 +1523,46 @@ const filteredHelpArticles = helpArticles.filter((article) => {
                     </p>
                   </div>
                 </article>
+              </section>
+
+              <section className="dashboard-section" id="certificates">
+                <div className="dashboard-section-heading">
+                  <div>
+                    <span className="dashboard-eyebrow">YOUR ACHIEVEMENTS</span>
+                    <h2>Certificates</h2>
+                    <p>View and print certificates you have earned.</p>
+                  </div>
+                </div>
+
+                {certificateError && (
+                  <div className="dashboard-error" role="alert">
+                    {certificateError}
+                  </div>
+                )}
+
+                {certificates.length > 0 ? (
+                  <div className="dashboard-course-grid">
+                    {certificates.map((certificate) => (
+                      <article className="dashboard-panel" key={certificate._id}>
+                        <span className="dashboard-eyebrow">CERTIFICATE OF COMPLETION</span>
+                        <h3>{certificate.course?.title || 'Completed course'}</h3>
+                        <p>
+                          Issued {new Date(certificate.issuedAt).toLocaleDateString()}
+                        </p>
+                        <Link
+                          to={`/certificates/${certificate.certificateId}`}
+                          className="dashboard-continue-link"
+                        >
+                          View and print certificate <ArrowRight size={15} />
+                        </Link>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="dashboard-empty-card">
+                    Complete all published lessons and pass their quizzes to earn a certificate.
+                  </div>
+                )}
               </section>
 
               {/* BENEFIT STRIP */}

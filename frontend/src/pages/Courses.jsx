@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { apiRequest } from '../lib/api'
+import { apiRequest, getSession } from '../lib/api'
 
 // Fallback images are used when a course has no thumbnail in MongoDB.
 const courseImages = {
@@ -40,10 +40,37 @@ function getCourseImage(course) {
 }
 
 function Courses() {
+  const navigate = useNavigate()
+  const session = getSession()
   const [courses, setCourses] = useState([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [enrollingSlug, setEnrollingSlug] = useState('')
+  const [enrolledSlugs, setEnrolledSlugs] = useState([])
+  const [enrollmentError, setEnrollmentError] = useState('')
+
+  async function enrollInCourse(course) {
+    if (!session) {
+      navigate('/login?next=/courses')
+      return
+    }
+
+    try {
+      setEnrollingSlug(course.slug)
+      setEnrollmentError('')
+      await apiRequest(`/courses/${encodeURIComponent(course.slug)}/enroll`, {
+        method: 'POST'
+      })
+      setEnrolledSlugs((current) =>
+        current.includes(course.slug) ? current : [...current, course.slug]
+      )
+    } catch (err) {
+      setEnrollmentError(err.message || 'Unable to enrol in this course.')
+    } finally {
+      setEnrollingSlug('')
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -292,9 +319,33 @@ function Courses() {
                       View Course
                       <span aria-hidden="true">→</span>
                     </Link>
+
+                    {!course.isPremium && (
+                      <button
+                        type="button"
+                        className="catalogue-course-link"
+                        onClick={() => enrollInCourse(course)}
+                        disabled={
+                          enrollingSlug === course.slug ||
+                          enrolledSlugs.includes(course.slug)
+                        }
+                      >
+                        {enrollingSlug === course.slug
+                          ? 'Enrolling...'
+                          : enrolledSlugs.includes(course.slug)
+                            ? 'Enrolled'
+                            : 'Enroll Free'}
+                      </button>
+                    )}
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+
+          {enrollmentError && (
+            <div className="catalogue-message catalogue-error" role="alert">
+              <p>{enrollmentError}</p>
             </div>
           )}
         </section>

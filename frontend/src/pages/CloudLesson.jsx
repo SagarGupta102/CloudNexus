@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
+import { API_URL, apiRequest, getSession } from '../lib/api'
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return ''
@@ -44,7 +45,9 @@ function getYouTubeEmbedUrl(url) {
 
 function CloudLesson() {
   // Read the lesson slug from the browser URL
-  const { slug } = useParams()
+  const { courseSlug, lessonSlug, slug } = useParams()
+  const currentLessonSlug = lessonSlug || slug
+  const coursePath = `/courses/${courseSlug || 'cloud-computing'}`
 
   // Store the lesson returned by the backend
   const [lesson, setLesson] = useState(null)
@@ -59,8 +62,13 @@ function CloudLesson() {
       : ''
 
   // Quiz state
-  const [selectedAnswer, setSelectedAnswer] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [selectedAnswers, setSelectedAnswers] = useState([])
+  const [quizResult, setQuizResult] = useState(null)
+  const [quizSubmitting, setQuizSubmitting] = useState(false)
+  const [quizError, setQuizError] = useState('')
+  const [completionStatus, setCompletionStatus] = useState('')
+  const [completionError, setCompletionError] = useState('')
+  const session = getSession()
 
   // Fetch the lesson whenever its URL slug changes
   useEffect(() => {
@@ -69,11 +77,14 @@ function CloudLesson() {
         setLoading(true)
         setError('')
         setLesson(null)
-        setSelectedAnswer('')
-        setSubmitted(false)
+        setSelectedAnswers([])
+        setQuizResult(null)
+        setQuizError('')
+        setCompletionStatus('')
+        setCompletionError('')
 
         const response = await fetch(
-          `http://localhost:5000/api/lessons/${encodeURIComponent(slug)}`
+          `${API_URL}/lessons/${encodeURIComponent(currentLessonSlug)}`
         )
 
         const data = await response.json()
@@ -95,17 +106,53 @@ function CloudLesson() {
     }
 
     fetchLesson()
-  }, [slug])
+  }, [currentLessonSlug])
 
-  function checkAnswer() {
-    if (!selectedAnswer) return
-
-    setSubmitted(true)
+  function selectAnswer(questionIndex, optionIndex) {
+    setSelectedAnswers((answers) => {
+      const nextAnswers = [...answers]
+      nextAnswers[questionIndex] = optionIndex
+      return nextAnswers
+    })
+    setQuizResult(null)
+    setQuizError('')
   }
 
-  function tryAgain() {
-    setSelectedAnswer('')
-    setSubmitted(false)
+  async function submitQuiz() {
+    const questions = lesson?.quiz?.questions || []
+    if (!lesson || selectedAnswers.length !== questions.length || selectedAnswers.some((answer) => answer === undefined)) {
+      return
+    }
+
+    try {
+      setQuizSubmitting(true)
+      setQuizError('')
+      const result = await apiRequest(`/learning/lessons/${lesson._id}/quiz`, {
+        method: 'POST',
+        body: JSON.stringify({ answers: selectedAnswers })
+      })
+      setQuizResult(result)
+    } catch (err) {
+      setQuizError(err.message || 'Unable to submit the quiz.')
+    } finally {
+      setQuizSubmitting(false)
+    }
+  }
+
+  async function completeLesson() {
+    if (!lesson || !session) return
+
+    try {
+      setCompletionError('')
+      const result = await apiRequest(`/learning/lessons/${lesson._id}/complete`, {
+        method: 'POST'
+      })
+      setCompletionStatus(
+        `Lesson completed. Course progress: ${result.progressPercentage}%.`
+      )
+    } catch (err) {
+      setCompletionError(err.message || 'Unable to record lesson completion.')
+    }
   }
 
   return (
@@ -116,10 +163,10 @@ function CloudLesson() {
         <div className="lesson-content">
 
           <Link
-            to="/courses/cloud-computing"
+            to={coursePath}
             className="lesson-back"
           >
-            ← Back to Cloud Computing
+            ← Back to Course
           </Link>
 
           {loading && (
@@ -218,8 +265,38 @@ function CloudLesson() {
     </div>
   )}
 
-              {lesson.slug ===
-                'introduction-to-cloud-computing' && (
+              <section className="lesson-completion">
+                <h2>Track Your Progress</h2>
+                {session ? (
+                  <>
+                    <button
+                      type="button"
+                      className="primary-btn"
+                      onClick={completeLesson}
+                      disabled={Boolean(completionStatus)}
+                    >
+                      {completionStatus ? 'Lesson Completed' : 'Mark Lesson Complete'}
+                    </button>
+                    {completionStatus && (
+                      <p role="status">{completionStatus}</p>
+                    )}
+                    {completionError && (
+                      <p role="alert" className="quiz-feedback incorrect">
+                        {completionError}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p>
+                    <Link to={`/login?next=${encodeURIComponent(window.location.pathname)}`}>
+                      Log in
+                    </Link>{' '}
+                    to track your progress.
+                  </p>
+                )}
+              </section>
+
+              {lesson.quiz?.questions?.length > 0 && (
                 <section className="quiz-box">
                   <span className="badge">
                     TEST YOUR KNOWLEDGE
@@ -227,78 +304,58 @@ function CloudLesson() {
 
                   <h2>Quick Quiz</h2>
 
-                  <p className="quiz-question">
-                    Which AWS service is commonly used to store
-                    files as objects?
-                  </p>
+                  {lesson.quiz.questions.map((question, questionIndex) => (
+                    <div className="quiz-question" key={question._id || questionIndex}>
+                      <p>
+                        {questionIndex + 1}. {question.question}
+                      </p>
 
-                  <div className="quiz-options">
-                    <button
-                      className={
-                        selectedAnswer === 'A'
-                          ? 'quiz-option selected'
-                          : 'quiz-option'
-                      }
-                      onClick={() => {
-                        setSelectedAnswer('A')
-                        setSubmitted(false)
-                      }}
-                    >
-                      A. Amazon S3
-                    </button>
-
-                    <button
-                      className={
-                        selectedAnswer === 'B'
-                          ? 'quiz-option selected'
-                          : 'quiz-option'
-                      }
-                      onClick={() => {
-                        setSelectedAnswer('B')
-                        setSubmitted(false)
-                      }}
-                    >
-                      B. Amazon EC2
-                    </button>
-
-                    <button
-                      className={
-                        selectedAnswer === 'C'
-                          ? 'quiz-option selected'
-                          : 'quiz-option'
-                      }
-                      onClick={() => {
-                        setSelectedAnswer('C')
-                        setSubmitted(false)
-                      }}
-                    >
-                      C. Amazon Route 53
-                    </button>
-                  </div>
+                      <div className="quiz-options">
+                        {question.options.map((option, optionIndex) => (
+                          <button
+                            type="button"
+                            className={
+                              selectedAnswers[questionIndex] === optionIndex
+                                ? 'quiz-option selected'
+                                : 'quiz-option'
+                            }
+                            key={`${question._id || questionIndex}-${optionIndex}`}
+                            onClick={() => selectAnswer(questionIndex, optionIndex)}
+                          >
+                            {String.fromCharCode(65 + optionIndex)}. {option}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
 
                   <button
+                    type="button"
                     className="primary-btn quiz-submit"
-                    onClick={checkAnswer}
-                    disabled={!selectedAnswer}
+                    onClick={submitQuiz}
+                    disabled={
+                      quizSubmitting ||
+                      selectedAnswers.length !== lesson.quiz.questions.length ||
+                      selectedAnswers.some((answer) => answer === undefined)
+                    }
                   >
-                    Check Answer
+                    {quizSubmitting ? 'Submitting...' : 'Submit Quiz'}
                   </button>
 
-                  {submitted && (
-                    <div
-                      className={
-                        selectedAnswer === 'A'
-                          ? 'quiz-feedback correct'
-                          : 'quiz-feedback incorrect'
-                      }
-                    >
-                      {selectedAnswer === 'A'
-                        ? 'Correct! Amazon S3 is an object storage service.'
-                        : 'Not quite. The correct answer is Amazon S3.'}
+                  {quizError && (
+                    <p className="quiz-feedback incorrect" role="alert">
+                      {quizError}
+                    </p>
+                  )}
 
-                      <button onClick={tryAgain}>
-                        Try Again
-                      </button>
+                  {quizResult && (
+                    <div className={`quiz-feedback ${quizResult.passed ? 'correct' : 'incorrect'}`} role="status">
+                      <strong>
+                        {quizResult.passed ? 'Passed' : 'Not passed'}
+                      </strong>
+                      <p>
+                        Score: {quizResult.score}% (passing score: {lesson.quiz.passingPercentage}%)
+                      </p>
                     </div>
                   )}
                 </section>
@@ -313,7 +370,7 @@ function CloudLesson() {
                 </p>
 
                 <Link
-                  to="/courses/cloud-computing"
+                  to={coursePath}
                   className="primary-btn"
                 >
                   Back to Learning Path →

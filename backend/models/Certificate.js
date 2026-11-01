@@ -10,4 +10,6 @@ const certificateSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+certificateSchema.index({ learner: 1, course: 1 }, { unique: true })
+
 module.exports = mongoose.model('Certificate', certificateSchema)

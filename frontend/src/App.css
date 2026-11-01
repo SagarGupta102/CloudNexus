@@ -3961,6 +3961,141 @@ button {
   transition: background 0.2s ease, transform 0.2s ease;
 }
 
+.course-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.course-detail-meta span,
+.course-detail-meta strong {
+  padding: 7px 12px;
+  border-radius: 999px;
+  color: #17345d;
+  background: #eaf4ff;
+  font-size: 12px;
+}
+
+.course-detail-meta strong {
+  color: #8a4b00;
+  background: #fff1d6;
+}
+
+.premium-course-lock {
+  max-width: 520px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid #f0d39a;
+  border-radius: 12px;
+  background: #fffaf0;
+}
+
+.premium-course-lock strong {
+  color: #8a4b00;
+}
+
+.premium-course-lock p {
+  margin: 8px 0 14px;
+}
+
+.certificate-page {
+  min-height: 100vh;
+  padding: 32px 20px;
+  background: #f5f8fc;
+  color: #12264a;
+}
+
+.certificate-actions {
+  max-width: 900px;
+  margin: 0 auto 20px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.certificate-actions button {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #087fdb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.certificate-card {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 90px 40px;
+  text-align: center;
+  background: #fff;
+  border: 12px solid #dceeff;
+  box-shadow: 0 15px 40px rgba(18, 38, 74, 0.12);
+}
+
+.certificate-mark {
+  color: #087fdb;
+  font-size: 34px;
+}
+
+.certificate-brand {
+  color: #12264a;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.certificate-brand span {
+  color: #087fdb;
+}
+
+.certificate-eyebrow {
+  margin-top: 40px;
+  color: #087fdb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.certificate-card h1 {
+  margin: 38px 0 12px;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.certificate-card h2 {
+  margin: 0 0 20px;
+  font-size: 38px;
+}
+
+.certificate-card h3 {
+  margin: 12px 0 35px;
+  color: #087fdb;
+  font-size: 28px;
+}
+
+.certificate-issued,
+.certificate-id {
+  color: #52657f;
+  font-size: 13px;
+}
+
+@media print {
+  .certificate-page {
+    padding: 0;
+    background: #fff;
+  }
+
+  .certificate-actions {
+    display: none;
+  }
+
+  .certificate-card {
+    max-width: none;
+    min-height: 90vh;
+    box-shadow: none;
+  }
+}
+
 .dashboard-browse-button:hover {
   color: #ffffff;
   background: #0562bf;

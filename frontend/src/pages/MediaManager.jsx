@@ -2,9 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { apiRequest, getSession } from '../lib/api'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+import { API_URL, apiRequest, getSession } from '../lib/api'
 
 function uploadMedia(file, targetType, targetId, onProgress) {
   return new Promise((resolve, reject) => {

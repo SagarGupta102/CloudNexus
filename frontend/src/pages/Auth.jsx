@@ -12,6 +12,7 @@ function Auth({ register = false }) {
     name: '',
     email: '',
     password: '',
+    role: 'student',
   })
 
   const [error, setError] = useState('')
@@ -27,7 +28,11 @@ function Auth({ register = false }) {
         `/auth/${register ? 'register' : 'login'}`,
         {
           method: 'POST',
-          body: JSON.stringify(form),
+          body: JSON.stringify(
+            register
+              ? form
+              : { email: form.email, password: form.password }
+          ),
         }
       )
 
@@ -38,7 +43,12 @@ function Auth({ register = false }) {
 
       saveSession(data)
 
-      navigate(params.get('next') || '/dashboard')
+      const dashboardByRole = {
+        student: '/student/dashboard',
+        instructor: '/instructor/dashboard',
+        admin: '/admin/dashboard',
+      }
+      navigate(params.get('next') || dashboardByRole[data.user.role] || '/dashboard')
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.')
     } finally {
@@ -207,6 +217,23 @@ function Auth({ register = false }) {
                       setForm({ ...form, name: event.target.value })
                     }
                   />
+                </label>
+              )}
+
+              {register && (
+                <label className="auth-field">
+                  <span>Account type</span>
+
+                  <select
+                    name="role"
+                    value={form.role}
+                    onChange={(event) =>
+                      setForm({ ...form, role: event.target.value })
+                    }
+                  >
+                    <option value="student">Student</option>
+                    <option value="instructor">Instructor</option>
+                  </select>
                 </label>
               )}
 

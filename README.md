@@ -42,7 +42,9 @@ Set `VITE_API_URL` in the frontend environment when the API is not at `http://lo
 - `GET /api/learning/dashboard`
 - `POST /api/learning/lessons/:lessonId/complete`
 - `POST /api/learning/lessons/:lessonId/quiz`
+- `GET /api/certificates/mine`, `POST /api/certificates/generate/:slug`
 - `POST /api/certificates/:slug`, `GET /api/certificates/verify/:certificateId`
+- `POST /api/payments/create-order`, `POST /api/payments/verify`
 - `POST /api/media/upload` (multipart upload, instructor/admin only; fields: `targetType`, `targetId`, `file`)
 
 ## Configuration and integrations

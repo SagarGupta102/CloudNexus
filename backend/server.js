@@ -18,6 +18,8 @@ const courseRoutes = require('./routes/courseRoutes')
 const learningRoutes = require('./routes/learningRoutes')
 const certificateRoutes = require('./routes/certificateRoutes')
 const mediaRoutes = require('./routes/mediaRoutes')
+const adminRoutes = require('./routes/adminRoutes')
+const paymentRoutes = require('./routes/paymentRoutes')
 
 // Health check API
 app.get('/api/health', (req, res) => {
@@ -34,6 +36,8 @@ app.use('/api/courses', courseRoutes)
 app.use('/api/learning', learningRoutes)
 app.use('/api/certificates', certificateRoutes)
 app.use('/api/media', mediaRoutes)
+app.use('/api/admin', adminRoutes)
+app.use('/api/payments', paymentRoutes)
 
 // Start server after connecting to MongoDB
 async function startServer() {
