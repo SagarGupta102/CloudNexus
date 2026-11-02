@@ -147,32 +147,17 @@ npm run dev
 Vite prints the local frontend URL in the terminal. The frontend uses `http://localhost:5000/api` by default unless `VITE_API_URL` is set.
 
 ## Environment variables
-
-### Backend: `backend/.env`
-
-These are the exact backend variable names used by the application:
-
-```dotenv
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>
 PORT=5000
-JWT_SECRET=<long-random-jwt-secret>
-CLOUDINARY_CLOUD_NAME=<cloudinary-cloud-name>
-CLOUDINARY_API_KEY=<cloudinary-api-key>
-CLOUDINARY_API_SECRET=<cloudinary-api-secret>
-RAZORPAY_KEY_ID=<razorpay-test-key-id>
-RAZORPAY_KEY_SECRET=<razorpay-test-key-secret>
-ADMIN_SETUP_SECRET=<long-random-admin-setup-secret>
-```
+JWT_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 
-`CLOUDINARY_API_SECRET`, `RAZORPAY_KEY_SECRET`, `JWT_SECRET`, and `ADMIN_SETUP_SECRET` are server-side secrets. Do not place them in frontend code or expose them through Vite.
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+ADMIN_SETUP_SECRET=
 
-### Frontend: `frontend/.env`
-
-The frontend reads the following Vite variable:
-
-```dotenv
-VITE_API_URL=http://localhost:5000/api
-```
 
 `VITE_API_URL` should point to the backend API base URL, including `/api`.
 
