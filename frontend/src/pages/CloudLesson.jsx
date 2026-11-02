@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import { API_URL, apiRequest, getSession } from '../lib/api'
+import { apiRequest, getSession } from '../lib/api'
 
 function getYouTubeEmbedUrl(url) {
   if (!url) return ''
@@ -83,23 +83,15 @@ function CloudLesson() {
         setCompletionStatus('')
         setCompletionError('')
 
-        const response = await fetch(
-          `${API_URL}/lessons/${encodeURIComponent(currentLessonSlug)}`
+        const data = await apiRequest(
+          `/lessons/${encodeURIComponent(currentLessonSlug)}`
         )
-
-        const data = await response.json()
-
-        if (!response.ok || !data.success) {
-          throw new Error(data.message || 'Unable to load lesson.')
-        }
 
         setLesson(data.lesson)
       } catch (err) {
         console.error('Error loading lesson:', err)
 
-        setError(
-          'Unable to load the lesson. Please check that your backend is running.'
-        )
+        setError(err.message || 'Unable to load the lesson.')
       } finally {
         setLoading(false)
       }

@@ -13,7 +13,8 @@ const courseSchema = new mongoose.Schema(
       publicId: { type: String, default: '' },
       resourceType: { type: String, default: 'image' },
       format: { type: String, default: '' },
-      bytes: { type: Number, default: 0 }
+      bytes: { type: Number, default: 0 },
+      originalName: { type: String, default: '' }
     },
     instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     isPublished: { type: Boolean, default: true },

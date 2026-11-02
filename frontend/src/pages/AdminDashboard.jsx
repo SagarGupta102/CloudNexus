@@ -1,6 +1,6 @@
 ﻿
-import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import {
   BarChart3,
   BookOpen,
@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Search,
   Settings,
   UserCog,
   Users,
@@ -301,21 +302,6 @@ function OverviewContent({
         </div>
       </section>
 
-      <section className="admin-panel-grid">
-        <EmptyPanel
-          eyebrow="USER ACTIVITY"
-          title="Recent Registrations"
-          icon={Users}
-          message="Recent registration details will be connected in the next step."
-        />
-        <EmptyPanel
-          eyebrow="COURSE ACTIVITY"
-          title="Course Activity"
-          icon={BookOpen}
-          message="Course updates and publishing activity will be connected next."
-        />
-      </section>
-
       <section className="admin-section">
         <div className="admin-section-heading compact">
           <div>
@@ -380,6 +366,91 @@ function SectionContent({ section, selectSection }) {
     if (section?.id === 'users') {
     return <UserManagementContent selectSection={selectSection} />
   }
+    if (section?.id === 'enrollments') {
+      return (
+        <AdminDataContent
+          endpoint="/admin/enrollments"
+          dataKey="enrollments"
+          title="Enrollments"
+          description="Review learner enrollment activity across the platform."
+          columns={['Learner', 'Course', 'Payment status', 'Enrolled']}
+          filterField="paymentStatus"
+          filterOptions={['free', 'paid', 'pending']}
+          searchFields={(item) => [
+            item.learner?.name,
+            item.learner?.email,
+            item.course?.title,
+            item.paymentStatus,
+            item.createdAt
+          ]}
+          renderRow={(item) => [
+            item.learner?.name || item.learner?.email || 'Unknown learner',
+            item.course?.title || 'Unknown course',
+            <StatusBadge value={item.paymentStatus || 'free'} />,
+            formatDate(item.createdAt),
+          ]}
+        />
+      )
+    }
+    if (section?.id === 'payments') {
+      return (
+        <AdminDataContent
+          endpoint="/admin/payments"
+          dataKey="payments"
+          title="Payments"
+          description="Review Razorpay payment records and verification status."
+          columns={['Learner', 'Course', 'Amount', 'Status']}
+          filterField="status"
+          filterOptions={['pending', 'verified', 'failed']}
+          searchFields={(item) => [
+            item.learner?.name,
+            item.learner?.email,
+            item.course?.title,
+            item.razorpayOrderId,
+            item.razorpayPaymentId,
+            item.status,
+            item.createdAt
+          ]}
+          renderRow={(item) => [
+            item.learner?.name || item.learner?.email || 'Unknown learner',
+            item.course?.title || 'Unknown course',
+            `${item.currency || 'INR'} ${(Number(item.amount || 0) / 100).toFixed(2)}`,
+            <StatusBadge value={item.status || 'pending'} />,
+          ]}
+        />
+      )
+    }
+    if (section?.id === 'certificates') {
+      return (
+        <AdminDataContent
+          endpoint="/admin/certificates"
+          dataKey="certificates"
+          title="Certificates"
+          description="Review certificates issued for completed courses."
+          columns={['Certificate ID', 'Learner', 'Course', 'Issued', 'Actions']}
+          searchFields={(item) => [
+            item.certificateId,
+            item.learner?.name,
+            item.learner?.email,
+            item.course?.title,
+            item.issuedAt
+          ]}
+          renderRow={(item) => [
+            <Link to={`/certificates/${encodeURIComponent(item.certificateId)}`}>{item.certificateId}</Link>,
+            item.learner?.name || item.learner?.email || 'Unknown learner',
+            item.course?.title || 'Unknown course',
+            formatDate(item.issuedAt),
+            <Link className="admin-table-link" to={`/certificates/${encodeURIComponent(item.certificateId)}`}>View</Link>,
+          ]}
+        />
+      )
+    }
+    if (section?.id === 'reports') {
+      return <AdminReportsContent />
+    }
+    if (section?.id === 'settings') {
+      return <AdminSettingsContent />
+    }
   const sectionDetails = {
     users: {
       eyebrow: 'USER ADMINISTRATION',
@@ -744,6 +815,216 @@ function SummaryCard({ icon: Icon, label, value, loading }) {
         <small>{loading ? 'Loading...' : 'Live platform data'}</small>
       </div>
     </article>
+  )
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleDateString() : 'Not available'
+}
+
+function StatusBadge({ value }) {
+  return <span className={`admin-status-badge ${value}`}>{value}</span>
+}
+
+function AdminDataContent({
+  endpoint,
+  dataKey,
+  title,
+  description,
+  columns,
+  renderRow,
+  searchFields,
+  filterField,
+  filterOptions
+}) {
+  const [records, setRecords] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+
+  useEffect(() => {
+    apiRequest(endpoint)
+      .then((data) => {
+        const nextRecords = Array.isArray(data[dataKey]) ? data[dataKey] : []
+        setRecords(nextRecords)
+        if (!Array.isArray(data[dataKey])) {
+          console.error(`Admin ${title} response did not contain an array at "${dataKey}".`)
+        }
+      })
+      .catch((err) => {
+        console.error(`Admin ${title} request failed:`, err.message)
+        setError(err.message || `Unable to load ${title.toLowerCase()}.`)
+      })
+      .finally(() => setLoading(false))
+  }, [endpoint, dataKey, title])
+
+  const filteredRecords = useMemo(() => {
+    const search = String(query || '').toLowerCase()
+    return records.filter((record) => {
+      const rowText = (searchFields
+        ? searchFields(record)
+        : Object.values(record).filter((value) => ['string', 'number'].includes(typeof value)))
+        .filter((value) => value !== null && value !== undefined)
+        .join(' ')
+        .toLowerCase()
+      return (!search || rowText.includes(search)) &&
+        (!filterField || filter === 'all' || record[filterField] === filter)
+    })
+  }, [records, query, filter, filterField, renderRow])
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize))
+  const visibleRecords = filteredRecords.slice((page - 1) * pageSize, page * pageSize)
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-eyebrow">ADMINISTRATION</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      <div className="admin-panel admin-user-table-panel">
+        {loading ? <p className="admin-table-message">Loading {title.toLowerCase()}...</p> : error ? <p className="admin-error">{error}</p> : records.length === 0 ? <p className="admin-table-message">No {title.toLowerCase()} found.</p> : (
+          <>
+            <div className="admin-table-toolbar">
+              <label className="admin-search">
+                <Search size={16} />
+                <input
+                  value={query}
+                  onChange={(event) => {
+                    setQuery(event.target.value)
+                    setPage(1)
+                  }}
+                  placeholder={`Search ${title.toLowerCase()}...`}
+                />
+              </label>
+              {filterOptions?.length > 0 && (
+                <select
+                  value={filter}
+                  onChange={(event) => {
+                    setFilter(event.target.value)
+                    setPage(1)
+                  }}
+                  aria-label={`Filter ${title}`}
+                >
+                  <option value="all">All statuses</option>
+                  {filterOptions.map((option) => (
+                    <option value={option} key={option}>
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            {visibleRecords.length === 0 ? <p className="admin-table-message">No matching records.</p> : (
+              <div className="admin-table-scroll">
+                <table className="admin-user-table">
+                  <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+                  <tbody>{visibleRecords.map((record) => <tr key={record._id}>{renderRow(record).map((value, index) => <td key={`${record._id}-${index}`}>{value}</td>)}</tr>)}</tbody>
+                </table>
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="admin-pagination">
+                <button type="button" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>Previous</button>
+                <span>Page {page} of {totalPages}</span>
+                <button type="button" disabled={page === totalPages} onClick={() => setPage((current) => current + 1)}>Next</button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function AdminReportsContent() {
+  const [stats, setStats] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiRequest('/admin/stats')
+      .then((data) => setStats(data.stats))
+      .catch((err) => setError(err.message || 'Unable to load reports.'))
+  }, [])
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-eyebrow">REPORTING &amp; ANALYTICS</span>
+          <h2>Reports &amp; Analytics</h2>
+          <p>Current platform totals from the protected admin API.</p>
+        </div>
+      </div>
+      {error ? <p className="admin-error">{error}</p> : stats ? <div className="admin-stat-grid">
+        <SummaryCard icon={Users} label="Users" value={stats.totalUsers} />
+        <SummaryCard icon={Users} label="Students" value={stats.totalStudents} />
+        <SummaryCard icon={BookOpen} label="Courses" value={stats.totalCourses} />
+        <SummaryCard icon={FileText} label="Enrollments" value={stats.totalEnrollments} />
+      </div> : <p className="admin-table-message">Loading reports...</p>}
+    </section>
+  )
+}
+
+function AdminSettingsContent() {
+  const session = getSession()
+  const [form, setForm] = useState({
+    name: session.name || '',
+    email: session.email || '',
+    currentPassword: '',
+    newPassword: ''
+  })
+  const [saved, setSaved] = useState('')
+  const [error, setError] = useState('')
+
+  async function saveSettings(event) {
+    event.preventDefault()
+    setSaved('')
+    setError('')
+    try {
+      const data = await apiRequest('/auth/me', {
+        method: 'PATCH',
+        body: JSON.stringify(form)
+      })
+      localStorage.setItem('cloudnexus_user', JSON.stringify(data.user))
+      setForm((current) => ({ ...current, ...data.user, currentPassword: '', newPassword: '' }))
+      setSaved(data.message || 'Profile updated successfully.')
+    } catch (err) {
+      setError(err.message || 'Unable to update your profile.')
+    }
+  }
+
+  return (
+    <section className="admin-section">
+      <div className="admin-section-heading">
+        <div>
+          <span className="admin-eyebrow">PLATFORM SETTINGS</span>
+          <h2>Settings</h2>
+          <p>Update your authenticated administrator profile.</p>
+        </div>
+      </div>
+      <form className="admin-panel" onSubmit={saveSettings}>
+        <div className="admin-settings-grid">
+          <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+          <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
+        </div>
+        <div className="admin-settings-password">
+          <h3>Change password</h3>
+          <p>Leave these fields blank to keep your current password.</p>
+          <div className="admin-settings-grid">
+            <label>Current password<input type="password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} autoComplete="current-password" /></label>
+            <label>New password<input type="password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} minLength="8" autoComplete="new-password" /></label>
+          </div>
+        </div>
+        <button type="submit">Save profile</button>
+        {error && <p className="admin-error" role="alert">{error}</p>}
+        {saved && <p className="admin-success" role="status">{saved}</p>}
+      </form>
+    </section>
   )
 }
 
@@ -1187,4 +1468,3 @@ function CourseManagementContent() {
     </section>
   )
 }
-

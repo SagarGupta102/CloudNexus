@@ -5,6 +5,7 @@ const Course = require('../models/Course')
 const Lesson = require('../models/Lesson')
 const Enrollment = require('../models/Enrollment')
 const { optionalAuth, requireAuth, requireRole } = require('../middleware/auth')
+const { deleteResource } = require('../services/cloudinary')
 
 const router = express.Router()
 
@@ -72,7 +73,7 @@ router.get(
       const filter =
         req.user.role === 'admin'
           ? {}
-          : { instructor: req.user._id }
+          : { instructor: new mongoose.Types.ObjectId(String(req.user._id)) }
 
       const courses = await Course.find(filter)
         .populate('instructor', 'name email')
@@ -85,6 +86,197 @@ router.get(
         success: false,
         message: 'Unable to load your courses.'
       })
+    }
+  }
+)
+
+// Instructor: list enrollments for the instructor's own courses.
+router.get(
+  '/mine/enrollments',
+  requireAuth,
+  requireRole('instructor', 'admin'),
+  async (req, res) => {
+    try {
+      const courseFilter =
+        req.user.role === 'admin'
+          ? {}
+          : { instructor: new mongoose.Types.ObjectId(String(req.user._id)) }
+      const courses = await Course.find(courseFilter).select('_id title').lean()
+      const enrollments = await Enrollment.find({
+        course: { $in: courses.map((course) => course._id) }
+      })
+        .populate('learner', 'name email')
+        .populate('course', 'title')
+        .sort({ createdAt: -1 })
+        .lean()
+
+      res.json({ success: true, enrollments })
+    } catch (error) {
+      console.error('Instructor enrollment listing failed:', error.message)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to load course enrollments.'
+      })
+    }
+  }
+)
+
+// Instructor: return owned-course teaching metrics.
+router.get(
+  '/mine/performance',
+  requireAuth,
+  requireRole('instructor', 'admin'),
+  async (req, res) => {
+    try {
+      const courseFilter =
+        req.user.role === 'admin'
+          ? {}
+          : { instructor: new mongoose.Types.ObjectId(String(req.user._id)) }
+      const courses = await Course.find(courseFilter).select('_id title').lean()
+      const courseIds = courses.map((course) => course._id)
+      const [enrollments, lessons] = await Promise.all([
+        Enrollment.find({ course: { $in: courseIds } }).select('course learner completedAt').lean(),
+        Lesson.find({ course: { $in: courses.map((course) => course.title) } }).select('course').lean()
+      ])
+      const courseById = new Map(courses.map((course) => [String(course._id), course]))
+      const courseMetrics = courses.map((course) => {
+        const courseEnrollments = enrollments.filter((item) => String(item.course) === String(course._id))
+        const completed = courseEnrollments.filter((item) => item.completedAt).length
+        return {
+          _id: course._id,
+          title: course.title,
+          students: new Set(courseEnrollments.map((item) => String(item.learner))).size,
+          enrollments: courseEnrollments.length,
+          lessons: lessons.filter((lesson) => lesson.course === course.title).length,
+          completionRate: courseEnrollments.length
+            ? Math.round((completed / courseEnrollments.length) * 100)
+            : 0
+        }
+      })
+
+      res.json({
+        success: true,
+        performance: {
+          courseCount: courses.length,
+          studentCount: new Set(enrollments.map((item) => String(item.learner))).size,
+          enrollmentCount: enrollments.length,
+          lessonCount: lessons.length,
+          completionRate: enrollments.length
+            ? Math.round((enrollments.filter((item) => item.completedAt).length / enrollments.length) * 100)
+            : 0,
+          courses: courseMetrics.map((item) => ({
+            ...item,
+            owner: courseById.get(String(item._id))?.title
+          }))
+        }
+      })
+    } catch (error) {
+      console.error('Instructor performance lookup failed:', error.message)
+      res.status(500).json({
+        success: false,
+        message: 'Unable to load teaching performance.'
+      })
+    }
+  }
+)
+
+router.get(
+  '/mine/media',
+  requireAuth,
+  requireRole('instructor', 'admin'),
+  async (req, res) => {
+    try {
+      const courseFilter =
+        req.user.role === 'admin'
+          ? {}
+          : { instructor: new mongoose.Types.ObjectId(String(req.user._id)) }
+      const courses = await Course.find(courseFilter)
+        .select('title thumbnailUrl thumbnailMedia')
+        .lean()
+      const lessons = await Lesson.find({
+        course: { $in: courses.map((course) => course.title) },
+        $or: [
+          { videoUrl: { $exists: true, $nin: ['', null] } },
+          { 'media.secureUrl': { $exists: true, $nin: ['', null] } }
+        ]
+      })
+        .select('title course videoUrl media updatedAt createdAt')
+        .lean()
+      const media = [
+        ...courses
+          .filter((course) => course.thumbnailUrl || course.thumbnailMedia?.secureUrl)
+          .map((course) => ({
+            _id: course._id,
+            targetType: 'course',
+            title: course.title,
+            url: course.thumbnailMedia?.secureUrl || course.thumbnailUrl,
+            publicId: course.thumbnailMedia?.publicId || '',
+            resourceType: course.thumbnailMedia?.resourceType || 'image',
+            format: course.thumbnailMedia?.format || '',
+            bytes: course.thumbnailMedia?.bytes || 0,
+            originalName: course.thumbnailMedia?.originalName || '',
+            createdAt: course.updatedAt
+          })),
+        ...lessons.map((lesson) => ({
+          _id: lesson._id,
+          targetType: 'lesson',
+          title: lesson.title,
+          course: lesson.course,
+          url: lesson.media?.secureUrl || lesson.videoUrl,
+          publicId: lesson.media?.publicId || '',
+          resourceType: lesson.media?.resourceType || 'video',
+          format: lesson.media?.format || '',
+          bytes: lesson.media?.bytes || 0,
+          originalName: lesson.media?.originalName || '',
+          createdAt: lesson.updatedAt || lesson.createdAt
+        }))
+      ]
+
+      res.json({ success: true, media })
+    } catch (error) {
+      console.error('Instructor media listing failed:', error.message)
+      res.status(500).json({ success: false, message: 'Unable to load your media.' })
+    }
+  }
+)
+
+router.delete(
+  '/mine/media/:targetType/:id',
+  requireAuth,
+  requireRole('instructor', 'admin'),
+  async (req, res) => {
+    try {
+      const { targetType, id } = req.params
+      if (!['course', 'lesson'].includes(targetType) || !mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: 'Invalid media target.' })
+      }
+      const target = targetType === 'course'
+        ? await Course.findById(id)
+        : await Lesson.findById(id)
+      if (!target) return res.status(404).json({ success: false, message: 'Media target not found.' })
+
+      let course = targetType === 'course'
+        ? target
+        : await Course.findOne({ title: target.course })
+      if (req.user.role === 'instructor' && (!course || String(course.instructor) !== String(req.user._id))) {
+        return res.status(403).json({ success: false, message: 'You can only manage media for your own courses.' })
+      }
+
+      const media = targetType === 'course' ? target.thumbnailMedia : target.media
+      if (media?.publicId) await deleteResource(media.publicId, media.resourceType || (targetType === 'course' ? 'image' : 'video'))
+
+      if (targetType === 'course') {
+        target.thumbnailUrl = ''
+        target.thumbnailMedia = undefined
+      } else {
+        target.videoUrl = ''
+        target.media = undefined
+      }
+      await target.save()
+      res.json({ success: true, message: 'Media deleted successfully.' })
+    } catch (error) {
+      console.error('Media deletion failed:', error.message)
+      res.status(500).json({ success: false, message: 'Unable to delete media.' })
     }
   }
 )

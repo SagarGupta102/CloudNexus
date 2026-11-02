@@ -82,7 +82,8 @@ media: {
   publicId: { type: String, default: '' },
   resourceType: { type: String, default: '' },
   format: { type: String, default: '' },
-  bytes: { type: Number, default: 0 }
+  bytes: { type: Number, default: 0 },
+  originalName: { type: String, default: '' }
 },
 
 approvalStatus: {

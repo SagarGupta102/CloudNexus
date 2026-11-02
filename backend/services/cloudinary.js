@@ -34,4 +34,9 @@ function uploadBuffer(buffer, options) {
   })
 }
 
-module.exports = { isConfigured, uploadBuffer }
+async function deleteResource(publicId, resourceType = 'image') {
+  const client = configureCloudinary()
+  return client.uploader.destroy(publicId, { resource_type: resourceType })
+}
+
+module.exports = { isConfigured, uploadBuffer, deleteResource }

@@ -151,4 +151,48 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ success: true, user: publicUser(req.user, true) })
 })
 
+router.patch('/me', requireAuth, async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim()
+    const email = String(req.body.email || '').trim().toLowerCase()
+    const interests = Array.isArray(req.body.interests) ? req.body.interests : req.user.interests
+    const currentPassword = String(req.body.currentPassword || '')
+    const newPassword = String(req.body.newPassword || '')
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, message: 'Name and email are required.' })
+    }
+
+    if (email !== req.user.email && await User.exists({ email, _id: { $ne: req.user._id } })) {
+      return res.status(409).json({ success: false, message: 'That email is already in use.' })
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 8 || !currentPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Current password and a new password of at least 8 characters are required.'
+        })
+      }
+      const account = await User.findById(req.user._id).select('+passwordHash +password')
+      const hash = account.passwordHash || account.password
+      if (!hash || !bcryptHashPattern.test(hash) || !(await bcrypt.compare(currentPassword, hash))) {
+        return res.status(401).json({ success: false, message: 'Current password is incorrect.' })
+      }
+      req.user.passwordHash = await bcrypt.hash(newPassword, 12)
+      req.user.password = undefined
+    }
+
+    req.user.name = name
+    req.user.email = email
+    req.user.interests = interests
+    await req.user.save()
+
+    res.json({ success: true, message: 'Profile updated successfully.', user: publicUser(req.user, true) })
+  } catch (error) {
+    console.error('Profile update failed:', error.message)
+    res.status(500).json({ success: false, message: 'Unable to update your profile.' })
+  }
+})
+
 module.exports = router

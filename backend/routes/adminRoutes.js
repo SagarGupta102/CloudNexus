@@ -6,6 +6,8 @@ const router = express.Router()
 const User = require('../models/User')
 const Course = require('../models/Course')
 const Enrollment = require('../models/Enrollment')
+const Payment = require('../models/Payment')
+const Certificate = require('../models/Certificate')
 const { requireAuth, requireRole } = require('../middleware/auth')
 
 // Protect every admin route
@@ -111,6 +113,63 @@ router.get('/students', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Unable to load students.'
+    })
+  }
+})
+
+// GET /api/admin/enrollments
+router.get('/enrollments', async (req, res) => {
+  try {
+    const enrollments = await Enrollment.find()
+      .populate('learner', 'name email')
+      .populate('course', 'title')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    res.json({ success: true, enrollments })
+  } catch (error) {
+    console.error('Admin enrollments error:', error.message)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to load enrollments.'
+    })
+  }
+})
+
+// GET /api/admin/payments
+router.get('/payments', async (req, res) => {
+  try {
+    const payments = await Payment.find()
+      .populate('learner', 'name email')
+      .populate('course', 'title')
+      .sort({ createdAt: -1 })
+      .lean()
+
+    res.json({ success: true, payments })
+  } catch (error) {
+    console.error('Admin payments error:', error.message)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to load payments.'
+    })
+  }
+})
+
+// GET /api/admin/certificates
+router.get('/certificates', async (req, res) => {
+  try {
+    const certificates = await Certificate.find()
+      .populate('learner', 'name email')
+      .populate('course', 'title')
+      .sort({ issuedAt: -1 })
+      .lean()
+
+    res.json({ success: true, certificates })
+  } catch (error) {
+    console.error('Admin certificates error:', error.message)
+    res.status(500).json({
+      success: false,
+      message: 'Unable to load certificates.'
     })
   }
 })

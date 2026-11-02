@@ -24,7 +24,8 @@ function mediaPayload(result) {
     publicId: result.public_id,
     resourceType: result.resource_type,
     format: result.format || '',
-    bytes: result.bytes || 0
+    bytes: result.bytes || 0,
+    originalName: result.original_filename || ''
   }
 }
 

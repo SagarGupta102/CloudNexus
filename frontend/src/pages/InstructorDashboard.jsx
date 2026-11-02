@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Children, useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { apiRequest, clearSession, getSession } from '../lib/api'
 import {
@@ -10,8 +10,13 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Image,
+  Search,
   Settings,
+  Trash2,
+  Upload,
   Users,
+  Video,
   Plus,
 } from 'lucide-react'
 import './InstructorDashboard.css'
@@ -35,6 +40,10 @@ function InstructorDashboard() {
 
   if (!user) {
     return <Navigate to="/login?next=/instructor/dashboard" replace />
+  }
+
+  if (!['instructor', 'admin'].includes(user.role)) {
+    return <Navigate to={user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'} replace />
   }
 
   function logout() {
@@ -152,12 +161,12 @@ function InstructorDashboard() {
             <LessonManagementContent />
           )}
 
-          {!['overview', 'create-course', 'courses', 'lessons'].includes(activeSection) && (
-            <section className="instructor-empty-card">
-              <h3>{activeItem?.label || 'Coming soon'}</h3>
-              <p>This section will be connected in the next development step.</p>
-            </section>
+          {activeSection === 'enrollments' && <InstructorEnrollmentsContent />}
+          {activeSection === 'media' && (
+            <InstructorMediaContent navigate={navigate} />
           )}
+          {activeSection === 'performance' && <InstructorPerformanceContent />}
+          {activeSection === 'settings' && <InstructorSettingsContent />}
         </div>
       </main>
     </div>
@@ -842,6 +851,258 @@ function InstructorOverview({ firstName, selectSection }) {
         </button>
       </section>
     </>
+  )
+}
+
+function InstructorEnrollmentsContent() {
+  const [enrollments, setEnrollments] = useState([])
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiRequest('/courses/mine/enrollments')
+      .then((data) => setEnrollments(data.enrollments || []))
+      .catch((err) => setError(err.message || 'Unable to load enrollments.'))
+  }, [])
+
+  return (
+    <InstructorDataSection
+      title="Student Enrollments"
+      description="Students enrolled in your courses."
+      error={error}
+      emptyMessage="No students are enrolled in your courses yet."
+    >
+      {enrollments.map((enrollment) => (
+        <div className="instructor-panel" key={enrollment._id}>
+          <strong>{enrollment.learner?.name || enrollment.learner?.email || 'Student'}</strong>
+          <p>{enrollment.course?.title || 'Course unavailable'}</p>
+          <small>{enrollment.paymentStatus || 'free'} access</small>
+        </div>
+      ))}
+    </InstructorDataSection>
+  )
+}
+
+function InstructorMediaContent({ navigate }) {
+  const [media, setMedia] = useState([])
+  const [query, setQuery] = useState('')
+  const [type, setType] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState('')
+
+  async function loadMedia() {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await apiRequest('/courses/mine/media')
+      setMedia(data.media || [])
+    } catch (err) {
+      setError(err.message || 'Unable to load media.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    let active = true
+    apiRequest('/courses/mine/media')
+      .then((data) => {
+        if (active) setMedia(data.media || [])
+      })
+      .catch((err) => {
+        if (active) setError(err.message || 'Unable to load media.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const filteredMedia = useMemo(() => media.filter((item) => {
+    const matchesType = type === 'all' || item.targetType === type
+    const text = `${item.originalName || ''} ${item.title} ${item.course || ''} ${item.format || ''}`.toLowerCase()
+    return matchesType && text.includes(query.toLowerCase())
+  }), [media, query, type])
+
+  async function deleteMedia(item) {
+    if (!window.confirm(`Delete the ${item.targetType} media for "${item.title}"?`)) return
+    try {
+      setDeletingId(`${item.targetType}-${item._id}`)
+      await apiRequest(`/courses/mine/media/${item.targetType}/${item._id}`, { method: 'DELETE' })
+      setMedia((current) => current.filter((entry) => entry._id !== item._id || entry.targetType !== item.targetType))
+    } catch (err) {
+      setError(err.message || 'Unable to delete media.')
+    } finally {
+      setDeletingId('')
+    }
+  }
+
+  return (
+    <section className="instructor-section">
+      <div className="instructor-section-heading">
+        <div>
+          <span className="instructor-eyebrow">MEDIA LIBRARY</span>
+          <h2>Course Media</h2>
+          <p>Manage the visual and video resources attached to your courses.</p>
+        </div>
+        <button type="button" className="instructor-primary-button" onClick={() => navigate('/manage-media')}>
+          <Upload size={16} />
+          Upload media
+        </button>
+      </div>
+      <div className="instructor-media-toolbar">
+        <label className="instructor-search">
+          <Search size={16} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search media..." />
+        </label>
+        <select value={type} onChange={(event) => setType(event.target.value)} aria-label="Filter media type">
+          <option value="all">All media</option>
+          <option value="course">Course images</option>
+          <option value="lesson">Lesson videos</option>
+        </select>
+        <button type="button" className="instructor-secondary-button" onClick={loadMedia} disabled={loading}>Refresh</button>
+      </div>
+      {error && <p className="instructor-form-error" role="alert">{error}</p>}
+      {loading ? <div className="instructor-empty-card">Loading media library...</div> : filteredMedia.length === 0 ? (
+        <div className="instructor-empty-card">
+          <FolderOpen size={28} />
+          <h3>{media.length ? 'No matching media' : 'Your media library is empty'}</h3>
+          <p>{media.length ? 'Try another search or filter.' : 'Upload a course thumbnail or lesson video to get started.'}</p>
+        </div>
+      ) : (
+        <div className="instructor-media-grid">
+          {filteredMedia.map((item) => (
+            <article className="instructor-media-card" key={`${item.targetType}-${item._id}`}>
+              <div className="instructor-media-preview">
+                {item.targetType === 'course' ? <img src={item.url} alt={`${item.title} thumbnail`} /> : (
+                  <><Video size={34} /><span>VIDEO</span></>
+                )}
+              </div>
+              <div className="instructor-media-card-body">
+                <div>
+                  <span className="instructor-media-type">{item.targetType === 'course' ? <Image size={13} /> : <Video size={13} />} {item.format || item.targetType}</span>
+                  <h3>{item.originalName || item.title}</h3>
+                  {item.course && <p>{item.course}</p>}
+                </div>
+                <small>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Date unavailable'}</small>
+                <button type="button" className="instructor-media-delete" onClick={() => deleteMedia(item)} disabled={deletingId === `${item.targetType}-${item._id}`}>
+                  <Trash2 size={14} /> {deletingId === `${item.targetType}-${item._id}` ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function InstructorPerformanceContent() {
+  const [performance, setPerformance] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiRequest('/courses/mine/performance')
+      .then((data) => setPerformance(data.performance))
+      .catch((err) => setError(err.message || 'Unable to load performance.'))
+  }, [])
+
+  return (
+    <InstructorDataSection
+      title="Performance"
+      description="Live teaching metrics from your courses."
+      error={error}
+      emptyMessage="Create a course to start tracking performance."
+    >
+      {performance && (
+        <>
+          <div className="instructor-stat-grid">
+            <div className="instructor-stat-card"><span className="instructor-stat-icon"><BookOpen size={20} /></span><div><p>Total courses</p><strong>{performance.courseCount}</strong><small>Owned courses</small></div></div>
+            <div className="instructor-stat-card"><span className="instructor-stat-icon"><Users size={20} /></span><div><p>Students</p><strong>{performance.studentCount}</strong><small>Unique learners</small></div></div>
+            <div className="instructor-stat-card"><span className="instructor-stat-icon"><ClipboardList size={20} /></span><div><p>Enrollments</p><strong>{performance.enrollmentCount}</strong><small>Total enrollments</small></div></div>
+            <div className="instructor-stat-card"><span className="instructor-stat-icon"><BarChart3 size={20} /></span><div><p>Completion rate</p><strong>{performance.completionRate}%</strong><small>Across enrollments</small></div></div>
+          </div>
+          <section className="instructor-panel instructor-performance-panel">
+            <div className="instructor-section-heading compact"><div><h3>Course performance</h3><p>Enrollment and completion metrics by course.</p></div></div>
+            {performance.courses.length === 0 ? <div className="instructor-panel-empty">No course performance data yet.</div> : performance.courses.map((course) => (
+              <div className="instructor-performance-row" key={course._id}>
+                <div><strong>{course.title}</strong><small>{course.students} students · {course.lessons} lessons</small></div>
+                <div className="instructor-performance-bar"><span style={{ width: `${course.completionRate}%` }} /></div>
+                <strong>{course.completionRate}%</strong>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+    </InstructorDataSection>
+  )
+}
+
+function InstructorSettingsContent() {
+  const session = getSession()
+  const [form, setForm] = useState({ name: session.name || '', email: session.email || '', currentPassword: '', newPassword: '' })
+  const [saved, setSaved] = useState('')
+  const [error, setError] = useState('')
+
+  async function saveSettings(event) {
+    event.preventDefault()
+    setSaved('')
+    setError('')
+    try {
+      const data = await apiRequest('/auth/me', { method: 'PATCH', body: JSON.stringify(form) })
+      localStorage.setItem('cloudnexus_user', JSON.stringify(data.user))
+      setForm((current) => ({ ...current, ...data.user, currentPassword: '', newPassword: '' }))
+      setSaved(data.message || 'Profile updated successfully.')
+    } catch (err) {
+      setError(err.message || 'Unable to update your profile.')
+    }
+  }
+
+  return (
+    <section className="instructor-section">
+      <div className="instructor-section-heading">
+        <div>
+          <span className="instructor-eyebrow">PREFERENCES</span>
+          <h2>Settings</h2>
+          <p>Update your authenticated CloudNexus profile.</p>
+        </div>
+      </div>
+      <form className="instructor-panel" onSubmit={saveSettings}>
+        <div className="instructor-form-grid">
+          <label>Name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
+          <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
+        </div>
+        <div className="instructor-settings-password">
+          <h3>Change password</h3>
+          <p>Leave these fields blank to keep your current password.</p>
+          <div className="instructor-form-grid">
+            <label>Current password<input type="password" value={form.currentPassword} onChange={(event) => setForm({ ...form, currentPassword: event.target.value })} autoComplete="current-password" /></label>
+            <label>New password<input type="password" value={form.newPassword} onChange={(event) => setForm({ ...form, newPassword: event.target.value })} minLength="8" autoComplete="new-password" /></label>
+          </div>
+        </div>
+        <button type="submit" className="instructor-primary-button">Save settings</button>
+        {error && <p className="instructor-form-error" role="alert">{error}</p>}
+        {saved && <p className="instructor-form-success" role="status">{saved}</p>}
+      </form>
+    </section>
+  )
+}
+
+function InstructorDataSection({ title, description, error, emptyMessage, children }) {
+  const hasContent = Children.count(children) > 0
+  return (
+    <section className="instructor-section">
+      <div className="instructor-section-heading">
+        <div>
+          <span className="instructor-eyebrow">INSTRUCTOR WORKSPACE</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      {error ? <div className="instructor-empty-card">{error}</div> : hasContent ? <div className="instructor-course-grid">{children}</div> : <div className="instructor-empty-card">{emptyMessage}</div>}
+    </section>
   )
 }
 

@@ -2,7 +2,8 @@
 const express = require('express')
 const Lesson = require('../models/Lesson')
 const Course = require('../models/Course')
-const { requireAuth, requireRole } = require('../middleware/auth')
+const Enrollment = require('../models/Enrollment')
+const { optionalAuth, requireAuth, requireRole } = require('../middleware/auth')
 
 const router = express.Router()
 
@@ -210,7 +211,7 @@ router.get(
 )
 
 // GET one published lesson by slug
-router.get('/:slug', async (req, res) => {
+router.get('/:slug', optionalAuth, async (req, res) => {
   try {
     const lesson = await Lesson.findOne({
       slug: req.params.slug,
@@ -227,7 +228,7 @@ router.get('/:slug', async (req, res) => {
     const course = await Course.findOne({
       title: lesson.course,
       isPublished: true
-    }).select('isPremium').lean()
+    }).select('_id isPremium').lean()
 
     if (!course) {
       return res.status(404).json({
@@ -237,10 +238,23 @@ router.get('/:slug', async (req, res) => {
     }
 
     if (course.isPremium) {
-      return res.status(403).json({
-        success: false,
-        message: 'This lesson belongs to a premium course and is currently restricted.'
-      })
+      const enrollment = req.user
+        ? await Enrollment.findOne({
+            learner: req.user._id,
+            course: course._id,
+            paymentStatus: 'paid'
+          }).select('_id').lean()
+        : null
+
+      if (!enrollment) {
+        console.warn(
+          `Premium lesson access denied: lesson=${lesson._id} course=${course._id} user=${req.user?._id || 'anonymous'}`
+        )
+        return res.status(403).json({
+          success: false,
+          message: 'Purchase this course before opening its lessons.'
+        })
+      }
     }
 
     res.status(200).json({

@@ -20,6 +20,7 @@ const certificateRoutes = require('./routes/certificateRoutes')
 const mediaRoutes = require('./routes/mediaRoutes')
 const adminRoutes = require('./routes/adminRoutes')
 const paymentRoutes = require('./routes/paymentRoutes')
+const Payment = require('./models/Payment')
 
 // Health check API
 app.get('/api/health', (req, res) => {
@@ -47,6 +48,7 @@ async function startServer() {
     }
 
     await mongoose.connect(process.env.MONGODB_URI)
+    await Payment.ensurePaymentIndexes()
 
     console.log('MongoDB Atlas connected successfully!')
 
